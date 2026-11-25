@@ -1,0 +1,20 @@
+[
+  {
+    "id": 457270902,
+    "tag_name": "realese",
+    "name": "1.0",
+    "body": "first realease obviosly incomplete\r\n\r\n## What's Changed\r\n* adiciona documentação de UX e telas do FoundFootage by @Gabriel-sampaio-passos in https://github.com/Progiago/FoundFootage/pull/1\r\n\r\n## New Contributors\r\n* @Gabriel-sampaio-passos made their first contribution in https://github.com/Progiago/FoundFootage/pull/1\r\n\r\n**Full Changelog**: https://github.com/Progiago/FoundFootage/commits/realese",
+    "prerelease": false,
+    "draft": false,
+    "published_at": "2026-11-24T20:06:14Z",
+    "html_url": "https://github.com/Progiago/react-vercel-deploy/releases/tag/foundfootage-installers",
+    "assets": [
+      {
+        "id": 788657914,
+        "name": "FoundFootage-0.1.0-setup.exe",
+        "size": 236288761,
+        "browser_download_url": "https://github.com/Progiago/react-vercel-deploy/releases/download/foundfootage-installers/FoundFootage-0.1.0-setup.exe"
+      }
+    ]
+  }
+]

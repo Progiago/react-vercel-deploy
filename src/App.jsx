@@ -3,9 +3,16 @@ import './App.css';
 
 const REPO_OWNER = 'Progiago';
 const REPO_NAME = 'FoundFootage';
-const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
-const RELEASES_URL = `${REPO_URL}/releases`;
+// Repositório público deste site e release onde os instaladores são espelhados,
+// já que o repositório do FoundFootage é privado.
+const SITE_REPO_URL = 'https://github.com/Progiago/react-vercel-deploy';
+const MIRROR_TAG = 'foundfootage-installers';
+const REPO_URL = SITE_REPO_URL;
+const RELEASES_URL = `${SITE_REPO_URL}/releases/tag/${MIRROR_TAG}`;
 const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=30`;
+// Arquivo gerado automaticamente pelo workflow de sincronização. Permite mostrar as
+// versões (e o instalador) mesmo quando o repositório do FoundFootage é privado.
+const LOCAL_RELEASES_URL = 'releases.json';
 
 const INSTALLER_EXTENSIONS = ['.exe', '.msi', '.dmg', '.pkg', '.appimage', '.deb', '.rpm'];
 
@@ -124,11 +131,10 @@ function pickInstaller(release, preferredOS) {
 
 function startDownload(asset) {
   if (!asset) return;
-  // Links de asset do GitHub já vêm com Content-Disposition: attachment.
-  // Abrimos em nova aba para não perder a página; o navegador baixa e fecha a aba.
+  // Os assets do GitHub já vêm com Content-Disposition: attachment, então o
+  // navegador inicia o download e mantém a página aberta.
   const link = document.createElement('a');
   link.href = asset.browser_download_url;
-  link.target = '_blank';
   link.rel = 'noopener noreferrer';
   link.download = asset.name;
   document.body.appendChild(link);
@@ -288,28 +294,48 @@ export default function App() {
     if (!silent) setStatus('loading');
     setError('');
     try {
-      const response = await fetch(API_URL, {
-        headers: { Accept: 'application/vnd.github+json' }
-      });
+      let published = null;
 
-      if (response.status === 404) {
-        setReleases([]);
-        setStatus('empty');
-        return;
+      // 1) Feed publicado pelo workflow de sincronização (funciona com repo privado).
+      try {
+        const localResponse = await fetch(`${LOCAL_RELEASES_URL}?t=${Date.now()}`, {
+          cache: 'no-store'
+        });
+        if (localResponse.ok) {
+          const localData = await localResponse.json();
+          if (Array.isArray(localData) && localData.length > 0) {
+            published = localData;
+          }
+        }
+      } catch {
+        /* segue para a API pública */
       }
-      if (!response.ok) {
-        throw new Error(`GitHub respondeu ${response.status}`);
+
+      // 2) Fallback: API pública do GitHub (quando o repositório for público).
+      if (published === null) {
+        const response = await fetch(API_URL, {
+          headers: { Accept: 'application/vnd.github+json' }
+        });
+
+        if (response.status === 404) {
+          setReleases([]);
+          setStatus('empty');
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(`GitHub respondeu ${response.status}`);
+        }
+
+        const data = await response.json();
+        published = Array.isArray(data) ? data : [];
       }
 
-      const data = await response.json();
-      const published = Array.isArray(data)
-        ? data
-            .filter((release) => !release.draft)
-            .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
-        : [];
+      const sorted = published
+        .filter((release) => !release.draft)
+        .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
 
-      setReleases(published);
-      setStatus(published.length > 0 ? 'ready' : 'empty');
+      setReleases(sorted);
+      setStatus(sorted.length > 0 ? 'ready' : 'empty');
       setLastUpdated(new Date());
     } catch (err) {
       setError(err?.message || 'Falha ao carregar releases');
@@ -361,7 +387,7 @@ export default function App() {
         </div>
         <nav className="topbar__nav">
           <a href={REPO_URL} target="_blank" rel="noreferrer">
-            Repositório
+            GitHub
           </a>
           <a className="btn btn--small btn--primary" href={RELEASES_URL} target="_blank" rel="noreferrer">
             Todas as versões
