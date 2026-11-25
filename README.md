@@ -9,9 +9,14 @@ FoundFootage e o histórico de versões, lendo direto dos **GitHub Releases**.
   (`/repos/Progiago/FoundFootage/releases`).
 - Quando uma nova release é publicada, ela aparece automaticamente na página
   (a cada 5 minutos e ao focar a aba) — não é necessário novo deploy.
-- O botão de download aponta para o instalador anexado na release
-  (procura automaticamente por `.exe`, `.msi`, `.dmg`, `.AppImage`, `.deb`, `.rpm`,
+- O botão de download detecta o sistema do visitante (Windows, macOS ou Linux),
+  baixa o instalador correspondente anexado na release e abre um guia de instalação
+  passo a passo (procura `.exe`, `.msi`, `.dmg`, `.pkg`, `.AppImage`, `.deb`, `.rpm`,
   priorizando arquivos com `setup` no nome).
+
+> Observação: por segurança, navegadores não instalam programas sozinhos. O botão
+> baixa o instalador oficial e mostra as instruções; a confirmação final de instalação
+> é feita pelo usuário no sistema operacional.
 
 ## Deploy no GitHub Pages
 

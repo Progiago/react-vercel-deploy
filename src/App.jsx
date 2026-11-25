@@ -9,9 +9,65 @@ const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/release
 
 const INSTALLER_EXTENSIONS = ['.exe', '.msi', '.dmg', '.pkg', '.appimage', '.deb', '.rpm'];
 
+const OS_INFO = {
+  windows: {
+    label: 'Windows',
+    installSteps: [
+      'O download do instalador .exe começou.',
+      'Abra o arquivo baixado (geralmente em "Downloads").',
+      'Se aparecer o aviso do Windows/SmartScreen, clique em "Mais informações" e depois em "Executar assim mesmo".',
+      'Siga o assistente de instalação (Avançar → Instalar → Concluir).'
+    ]
+  },
+  mac: {
+    label: 'macOS',
+    installSteps: [
+      'O download do instalador começou.',
+      'Abra o arquivo .dmg baixado e arraste o FoundFootage para a pasta "Aplicativos".',
+      'Se o macOS bloquear, vá em Ajustes do Sistema → Privacidade e Segurança → "Abrir mesmo assim".',
+      'Abra o FoundFootage pelo Launchpad.'
+    ]
+  },
+  linux: {
+    label: 'Linux',
+    installSteps: [
+      'O download do pacote começou.',
+      'Para AppImage: clique com o botão direito → Propriedades → Permissões → marque "Permitir execução", depois dê dois cliques.',
+      'Para .deb: instale com o gerenciador de pacotes ou "sudo apt install ./arquivo.deb".',
+      'Para .rpm: use "sudo rpm -i arquivo.rpm" ou o seu gerenciador gráfico.'
+    ]
+  },
+  unknown: {
+    label: 'seu sistema',
+    installSteps: [
+      'O download do instalador começou.',
+      'Abra o arquivo baixado.',
+      'Siga o assistente de instalação do seu sistema operacional.'
+    ]
+  }
+};
+
 function isInstaller(assetName = '') {
   const lower = assetName.toLowerCase();
   return INSTALLER_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+function assetOS(assetName = '') {
+  const name = assetName.toLowerCase();
+  if (name.endsWith('.exe') || name.endsWith('.msi')) return 'windows';
+  if (name.endsWith('.dmg') || name.endsWith('.pkg')) return 'mac';
+  if (name.endsWith('.appimage') || name.endsWith('.deb') || name.endsWith('.rpm')) return 'linux';
+  return 'other';
+}
+
+function detectOS() {
+  const nav = typeof navigator !== 'undefined' ? navigator : {};
+  const platform = nav.userAgentData?.platform || nav.platform || '';
+  const probe = `${platform} ${nav.userAgent || ''}`.toLowerCase();
+  if (probe.includes('win')) return 'windows';
+  if (probe.includes('mac') || probe.includes('darwin')) return 'mac';
+  if (probe.includes('linux') || probe.includes('x11') || probe.includes('android')) return 'linux';
+  return 'unknown';
 }
 
 function formatBytes(bytes) {
@@ -54,16 +110,86 @@ function relativeTime(iso) {
   return `há ${months} mês${months > 1 ? 'es' : ''}`;
 }
 
-function pickInstaller(release) {
+// Escolhe o instalador mais adequado para o sistema do visitante.
+function pickInstaller(release, preferredOS) {
   if (!release?.assets?.length) return null;
   const installers = release.assets.filter((asset) => isInstaller(asset.name));
   const pool = installers.length > 0 ? installers : release.assets;
-  return pool.find((asset) => /setup/i.test(asset.name)) ?? pool[0];
+
+  const forOS = pool.filter((asset) => assetOS(asset.name) === preferredOS);
+  const candidates = forOS.length > 0 ? forOS : pool;
+
+  return candidates.find((asset) => /setup/i.test(asset.name)) ?? candidates[0];
 }
 
-function ReleaseCard({ release, isLatest }) {
-  const installer = pickInstaller(release);
+function startDownload(asset) {
+  if (!asset) return;
+  // Links de asset do GitHub já vêm com Content-Disposition: attachment.
+  // Abrimos em nova aba para não perder a página; o navegador baixa e fecha a aba.
+  const link = document.createElement('a');
+  link.href = asset.browser_download_url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.download = asset.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function InstallGuide({ info, onClose }) {
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal" role="presentation" onClick={onClose}>
+      <div
+        className="modal__card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="install-guide-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="modal__close" onClick={onClose} aria-label="Fechar">
+          ×
+        </button>
+        <p className="eyebrow">Instalação</p>
+        <h2 id="install-guide-title" className="modal__title">
+          Como instalar no {info.osLabel}
+        </h2>
+        <p className="modal__file">
+          Arquivo: <code>{info.fileName}</code>
+        </p>
+        <ol className="modal__steps">
+          {info.steps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <p className="modal__note">
+          Por segurança, o navegador não executa instaladores sozinho: ele baixa o arquivo e você
+          confirma a instalação no seu sistema.
+        </p>
+        <div className="modal__actions">
+          <button type="button" className="btn btn--primary" onClick={onClose}>
+            Entendi
+          </button>
+          <a className="btn btn--ghost" href={RELEASES_URL} target="_blank" rel="noreferrer">
+            Ver todos os arquivos
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReleaseCard({ release, isLatest, preferredOS, onInstall }) {
+  const installer = pickInstaller(release, preferredOS);
   const otherAssets = (release.assets ?? []).filter((asset) => asset !== installer);
+  const osLabel = OS_INFO[preferredOS]?.label ?? OS_INFO.unknown.label;
 
   return (
     <article className={`release-card${isLatest ? ' release-card--latest' : ''}`}>
@@ -90,10 +216,22 @@ function ReleaseCard({ release, isLatest }) {
 
       <div className="release-card__actions">
         {installer ? (
-          <a className="btn btn--primary" href={installer.browser_download_url} download>
-            ⬇ Baixar {installer.name}
-            {installer.size ? <span className="btn__meta">{formatBytes(installer.size)}</span> : null}
-          </a>
+          <button
+            type="button"
+            className="btn btn--primary btn--install"
+            onClick={() => {
+              startDownload(installer);
+              onInstall({ release, asset: installer, os: preferredOS });
+            }}
+          >
+            <span className="btn__icon" aria-hidden="true">
+              ⬇
+            </span>
+            <span>
+              Baixar e instalar para {osLabel}
+              {installer.size ? <span className="btn__meta">{formatBytes(installer.size)}</span> : null}
+            </span>
+          </button>
         ) : (
           <a className="btn btn--primary" href={release.html_url} target="_blank" rel="noreferrer">
             Abrir release no GitHub
@@ -104,13 +242,24 @@ function ReleaseCard({ release, isLatest }) {
         </a>
       </div>
 
+      {installer && (
+        <p className="release-card__hint">
+          O navegador baixa o instalador; depois é só abrir o arquivo para concluir a instalação.
+        </p>
+      )}
+
       {otherAssets.length > 0 && (
         <details className="release-card__assets">
           <summary>Outros arquivos ({otherAssets.length})</summary>
           <ul>
             {otherAssets.map((asset) => (
               <li key={asset.id}>
-                <a href={asset.browser_download_url} download>
+                <a
+                  href={asset.browser_download_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  download
+                >
                   {asset.name}
                 </a>
                 <span>{formatBytes(asset.size)}</span>
@@ -128,6 +277,12 @@ export default function App() {
   const [status, setStatus] = useState('loading'); // loading | ready | empty | error
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [guide, setGuide] = useState(null);
+  const [preferredOS, setPreferredOS] = useState('unknown');
+
+  useEffect(() => {
+    setPreferredOS(detectOS());
+  }, []);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setStatus('loading');
@@ -173,7 +328,20 @@ export default function App() {
     };
   }, [load]);
 
-  const latest = useMemo(() => releases.find((release) => !release.prerelease) ?? releases[0], [releases]);
+  const handleInstall = useCallback(({ release, asset, os }) => {
+    const info = OS_INFO[os] ?? OS_INFO.unknown;
+    setGuide({
+      osLabel: info.label,
+      steps: info.installSteps,
+      fileName: asset.name,
+      version: release.tag_name
+    });
+  }, []);
+
+  const latest = useMemo(
+    () => releases.find((release) => !release.prerelease) ?? releases[0],
+    [releases]
+  );
   const history = useMemo(
     () => releases.filter((release) => release !== latest),
     [releases, latest]
@@ -204,10 +372,10 @@ export default function App() {
       <main className="content">
         <section className="hero">
           <p className="eyebrow">Downloads oficiais</p>
-          <h1>Baixe a versão mais recente do FoundFootage</h1>
+          <h1>Baixe e instale o FoundFootage</h1>
           <p className="hero__lead">
-            Instaladores publicados no GitHub Releases. Esta página atualiza automaticamente
-            sempre que uma nova versão é publicada — sem precisar de deploy.
+            Detectamos o seu sistema e preparamos o instalador certo. Ao clicar, o download começa
+            e mostramos o passo a passo para instalar. Novas versões aparecem aqui automaticamente.
           </p>
         </section>
 
@@ -241,7 +409,7 @@ export default function App() {
               <a href={RELEASES_URL} target="_blank" rel="noreferrer">
                 GitHub Releases
               </a>
-              , ela aparecerá aqui automaticamente.
+              , o instalador aparecerá aqui automaticamente.
             </p>
             <a className="btn btn--primary" href={RELEASES_URL} target="_blank" rel="noreferrer">
               Ir para GitHub Releases
@@ -255,7 +423,12 @@ export default function App() {
               <span className="pulse" aria-hidden="true" />
               Versão mais recente · {relativeTime(latest.published_at)}
             </div>
-            <ReleaseCard release={latest} isLatest />
+            <ReleaseCard
+              release={latest}
+              isLatest
+              preferredOS={preferredOS}
+              onInstall={handleInstall}
+            />
           </section>
         )}
 
@@ -263,11 +436,19 @@ export default function App() {
           <section className="history">
             <div className="history__head">
               <h2>Histórico de versões</h2>
-              <span>{history.length} versõ{history.length > 1 ? 'es' : 'a'} anterior{history.length > 1 ? 'es' : ''}</span>
+              <span>
+                {history.length} versõ{history.length > 1 ? 'es' : 'a'} anterior
+                {history.length > 1 ? 'es' : ''}
+              </span>
             </div>
             <div className="history__list">
               {history.map((release) => (
-                <ReleaseCard key={release.id ?? release.tag_name} release={release} />
+                <ReleaseCard
+                  key={release.id ?? release.tag_name}
+                  release={release}
+                  preferredOS={preferredOS}
+                  onInstall={handleInstall}
+                />
               ))}
             </div>
           </section>
@@ -275,17 +456,17 @@ export default function App() {
 
         <section className="info">
           <div className="info__card">
-            <h3>Atualização automática</h3>
+            <h3>Instalação em 3 passos</h3>
             <p>
-              Os dados vêm direto da API de Releases do GitHub. Cada versão publicada é exibida
-              aqui em instantes, sem rebuild do site. A página também recarrega ao voltar o foco.
+              1) Clique em baixar · 2) Abra o instalador · 3) Siga o assistente. O arquivo é o
+              mesmo publicado oficialmente no GitHub Releases.
             </p>
           </div>
           <div className="info__card">
-            <h3>Instalador oficial</h3>
+            <h3>Atualização automática</h3>
             <p>
-              Os botões de download apontam para os arquivos anexados na release correspondente,
-              incluindo o instalador do aplicativo desktop.
+              A página lê direto da API de Releases do GitHub. Cada versão publicada aparece aqui
+              em instantes, sem rebuild do site.
             </p>
           </div>
         </section>
@@ -304,6 +485,8 @@ export default function App() {
             : `Projeto ${REPO_OWNER}/${REPO_NAME}`}
         </span>
       </footer>
+
+      {guide && <InstallGuide info={guide} onClose={() => setGuide(null)} />}
     </div>
   );
 }
