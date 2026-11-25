@@ -1,16 +1,50 @@
-# React + Vite
+# FoundFootage — página de downloads
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Página React (Vite) publicada no **GitHub Pages** que exibe a versão mais recente do
+FoundFootage e o histórico de versões, lendo direto dos **GitHub Releases**.
 
-Currently, two official plugins are available:
+## Como funciona a automação
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- A página busca as releases em tempo real na API pública do GitHub
+  (`/repos/Progiago/FoundFootage/releases`).
+- Quando uma nova release é publicada, ela aparece automaticamente na página
+  (a cada 5 minutos e ao focar a aba) — não é necessário novo deploy.
+- O botão de download aponta para o instalador anexado na release
+  (procura automaticamente por `.exe`, `.msi`, `.dmg`, `.AppImage`, `.deb`, `.rpm`,
+  priorizando arquivos com `setup` no nome).
 
-## React Compiler
+## Deploy no GitHub Pages
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+O workflow `.github/workflows/deploy.yml` publica a pasta `dist/` no GitHub Pages
+a cada push na `main`, a cada release publicada e também manualmente.
 
-## Expanding the Oxlint configuration
+**Configuração necessária (uma vez):**
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+1. No GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. Faça push na branch `main`.
+
+O site ficará em: `https://progiago.github.io/react-vercel-deploy/`
+
+> A página lê o repositório `Progiago/FoundFootage`. Se o repositório for privado,
+> a API pública de releases retorna 404 — nesse caso a página mostra um estado
+> amigável com link direto para a página de Releases.
+
+## Desenvolvimento
+
+```bash
+npm install
+npm run dev      # ambiente local
+npm run build    # gera dist/
+npm run preview  # pré-visualiza dist/
+```
+
+## Personalização
+
+Os dados do repositório ficam no topo de `src/App.jsx`:
+
+```js
+const REPO_OWNER = 'Progiago';
+const REPO_NAME = 'FoundFootage';
+```
+
+Altere esses valores para apontar para outro repositório de releases.
