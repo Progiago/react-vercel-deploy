@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './App.css';
+import { cleanReleaseBody } from './lib/releaseBody';
 
 const REPO_OWNER = 'Progiago';
 const REPO_NAME = 'FoundFootage';
@@ -196,6 +197,7 @@ function ReleaseCard({ release, isLatest, preferredOS, onInstall }) {
   const installer = pickInstaller(release, preferredOS);
   const otherAssets = (release.assets ?? []).filter((asset) => asset !== installer);
   const osLabel = OS_INFO[preferredOS]?.label ?? OS_INFO.unknown.label;
+  const body = cleanReleaseBody(release.body);
 
   return (
     <article className={`release-card${isLatest ? ' release-card--latest' : ''}`}>
@@ -214,9 +216,9 @@ function ReleaseCard({ release, isLatest, preferredOS, onInstall }) {
         <h3 className="release-card__name">{release.name}</h3>
       )}
 
-      {release.body && (
+      {body && (
         <p className="release-card__body">
-          {release.body.length > 320 ? `${release.body.slice(0, 320)}…` : release.body}
+          {body.length > 320 ? `${body.slice(0, 320)}…` : body}
         </p>
       )}
 

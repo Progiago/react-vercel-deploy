@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { cleanReleaseBody } from '../src/lib/releaseBody.js';
 
 const SOURCE_REPO = process.env.SOURCE_REPO || 'Progiago/FoundFootage';
 const SITE_REPO = process.env.GITHUB_REPOSITORY;
@@ -208,7 +209,7 @@ async function main() {
         id: release.id,
         tag_name: release.tag_name,
         name: release.name,
-        body: release.body,
+        body: cleanReleaseBody(release.body),
         prerelease: Boolean(release.prerelease),
         draft: false,
         published_at: release.published_at,
